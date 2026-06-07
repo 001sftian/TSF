@@ -16,7 +16,7 @@ from weakpde_rl import (
 def main() -> None:
     data = make_3d_reaction_advection_diffusion(noise=0.002)
     terms = build_scalar_library(include_decoys=True)
-    system = WeakFormProjector(radius=1, stride=2).project(data, terms)
+    system = WeakFormProjector(radius=1, stride=1, sample_fraction=0.06, seed=23).project(data, terms)
     result = RNSPDEDiscoverer(max_terms=5, top_k=12, cem_iterations=7, population=70).fit(system)
 
     print("3-D weak-form RL/CEM PDE discovery")

@@ -19,11 +19,13 @@ class WeakSystem:
 class WeakFormProjector:
     """Compact-window weak-form projection for noisy regular-grid data."""
 
-    def __init__(self, radius: int = 1, stride: int = 2):
+    def __init__(self, radius: int = 1, stride: int = 2, sample_fraction: float = 1.0, seed: int = 11):
         if radius < 1:
             raise ValueError("radius must be positive")
         self.radius = radius
         self.stride = stride
+        self.sample_fraction = sample_fraction
+        self.seed = seed
 
     def _window_weights(self) -> list[tuple[int, int, int, int, float]]:
         r = self.radius
@@ -40,18 +42,25 @@ class WeakFormProjector:
         return [(di, dj, dk, dn, w / total) for di, dj, dk, dn, w in values]
 
     def project(self, data: FieldData, terms: list[CandidateTerm]) -> WeakSystem:
-        cache = derivative_cache(data.u, data.spacing, data.shape)
+        target_values = data.fields.get(data.target, data.u)
+        extras = dict(data.fields)
+        extras[data.target] = target_values
+        cache = derivative_cache(target_values, data.spacing, data.shape, extras)
         fields = [term.evaluator(cache) for term in terms]
-        target = cache["u_t"]
+        target = cache[f"{data.target}_t"]
         weights = self._window_weights()
         r = self.radius
         nx, ny, nz, nt = data.shape
         rows: list[list[float]] = []
         rhs: list[float] = []
+        import random
+        rng = random.Random(self.seed)
         for i in range(r, nx - r, self.stride):
             for j in range(r, ny - r, self.stride):
                 for k in range(r, nz - r, self.stride):
                     for n in range(r, nt - r, self.stride):
+                        if self.sample_fraction < 1.0 and rng.random() > self.sample_fraction:
+                            continue
                         row = []
                         for field in fields:
                             row.append(sum(field[idx(i + di, j + dj, k + dk, n + dn, data.shape)] * w for di, dj, dk, dn, w in weights))
